@@ -32,13 +32,89 @@ class HomePage extends StatelessWidget {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        shape: CircleBorder(),
-        child: Icon(Icons.add),
+      floatingActionButton: Builder(
+        builder: (context) {
+          return FloatingActionButton(
+            onPressed: () {
+              // Show bottom sheet Add Task
+              _showAddTaskSheet(context);
+            },
+            shape: CircleBorder(),
+            child: Icon(Icons.add),
+          );
+        },
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: Container(height: 100, color: Color(0xFF363636)),
     );
+  }
+
+  /// Show Add Task Bottom Sheet
+  void _showAddTaskSheet(BuildContext context) {
+    String? taskTitle;
+    String? description;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (_) {
+        return Container(
+          padding: EdgeInsets.all(25),
+          height: 340,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Add Task', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 14),
+              TextField(
+                decoration: InputDecoration(
+                  hintText: 'Title',
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.transparent),
+                  ),
+                ),
+                onChanged: (value) {
+                  taskTitle = value;
+                },
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Description',
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.transparent),
+                  ),
+                ),
+                onChanged: (value) {
+                  description = value;
+                },
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(onPressed: () {}, icon: Icon(Icons.alarm)),
+                  IconButton(
+                    onPressed: () {
+                      _saveTask(taskTitle, description);
+                      Navigator.of(context).pop();
+                    },
+                    icon: Icon(Icons.send),
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _saveTask(String? taskTitle, String? description) {
+    // TODO: Implement saving task logic
+    print('Saving task: $taskTitle, Description: $description');
   }
 }
