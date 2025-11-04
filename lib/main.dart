@@ -90,7 +90,13 @@ class _HomePageState extends State<HomePage> {
   /// Saves a new task to the todoList.
   void _saveTask(String taskTitle, String? description, DateTime? selectedDateTime) {
     // Create a new Task object.
-    final newTask = Task(title: taskTitle, description: description, timestamp: selectedDateTime);
+    final newTask = Task(
+      // just a simple way to generate a unique id based on the current time.
+      id: DateTime.now().millisecondsSinceEpoch,
+      title: taskTitle,
+      description: description,
+      timestamp: selectedDateTime,
+    );
     // Add the new task to the list and call setState to rebuild the widget and update the UI.
     setState(() {
       todoList.add(newTask);
@@ -103,12 +109,33 @@ class _HomePageState extends State<HomePage> {
 
 // Data model for a to-do item.
 class Task {
+  int id;
   String title;
   String? description;
   DateTime? timestamp;
   bool isCompleted;
 
-  Task({required this.title, this.description, this.timestamp, this.isCompleted = false});
+  Task({
+    required this.id,
+    required this.title,
+    this.description,
+    this.timestamp,
+    this.isCompleted = false,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Task &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          description == other.description &&
+          timestamp == other.timestamp &&
+          isCompleted == other.isCompleted;
+
+  @override
+  int get hashCode => Object.hash(id, title, description, timestamp, isCompleted);
 }
 
 /// A widget that is shown when the to-do list is empty.
@@ -384,6 +411,9 @@ class _TodoListViewState extends State<TodoListView> {
                       _applyDateFilter();
                     });
                   },
+                  onNotifyDataChanged: () {
+                    _applyDateFilter();
+                  },
                 );
               },
               itemCount: _filteredTasks.length,
@@ -439,6 +469,9 @@ class _TodoListViewState extends State<TodoListView> {
                       widget.tasks.remove(task);
                       _applyDateFilter();
                     });
+                  },
+                  onNotifyDataChanged: () {
+                    _applyDateFilter();
                   },
                 );
               },
@@ -512,6 +545,7 @@ class TaskItem extends StatelessWidget {
     required this.task,
     required this.onMarkComplete,
     required this.onDeleteTaskPressed,
+    required this.onNotifyDataChanged,
   });
 
   final Task task;
@@ -519,17 +553,19 @@ class TaskItem extends StatelessWidget {
 
   // A callback function that is called when the user marks a task as complete or incomplete.
   final ValueChanged<bool> onMarkComplete;
+  final VoidCallback onNotifyDataChanged;
 
   @override
   Widget build(BuildContext context) {
     // A ListTile is a single fixed-height row that typically contains some text as well as a leading or trailing icon.
     return InkWell(
-      onTap: () {
-        Navigator.of(context).push(
+      onTap: () async {
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => TaskDetailsPage(task: task, onDeleteTaskPressed: onDeleteTaskPressed),
           ),
         );
+        onNotifyDataChanged();
       },
       child: ListTile(
         dense: true,
@@ -557,11 +593,37 @@ class TaskItem extends StatelessWidget {
   }
 }
 
-class TaskDetailsPage extends StatelessWidget {
+class TaskDetailsPage extends StatefulWidget {
   const TaskDetailsPage({super.key, required this.task, required this.onDeleteTaskPressed});
 
   final Task task;
   final Function(Task task) onDeleteTaskPressed;
+
+  @override
+  State<TaskDetailsPage> createState() => _TaskDetailsPageState();
+}
+
+class _TaskDetailsPageState extends State<TaskDetailsPage> {
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  DateTime? _tempTimestamp;
+  bool _tempIsCompleted = false;
+
+  bool get isModified {
+    return _titleController.text != widget.task.title ||
+        _descriptionController.text != (widget.task.description ?? '') ||
+        _tempTimestamp != widget.task.timestamp ||
+        _tempIsCompleted != widget.task.isCompleted;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController.text = widget.task.title;
+    _descriptionController.text = widget.task.description ?? '';
+    _tempTimestamp = widget.task.timestamp;
+    _tempIsCompleted = widget.task.isCompleted;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -579,6 +641,25 @@ class TaskDetailsPage extends StatelessWidget {
             backgroundColor: WidgetStateProperty.all<Color>(Color(0xFF1D1D1D)),
           ),
         ),
+        actions: [
+          if (isModified)
+            IconButton(
+              onPressed: () {
+                widget.task.title = _titleController.text;
+                widget.task.description = _descriptionController.text;
+                widget.task.timestamp = _tempTimestamp;
+                widget.task.isCompleted = _tempIsCompleted;
+                Navigator.of(context).pop();
+              },
+              icon: Icon(Icons.save),
+              style: ButtonStyle(
+                shape: WidgetStateProperty.all(
+                  RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(4))),
+                ),
+                backgroundColor: WidgetStateProperty.all<Color>(Color(0xFF8687E7)),
+              ),
+            ),
+        ],
       ),
       body: Container(
         padding: EdgeInsets.all(24),
@@ -586,32 +667,59 @@ class TaskDetailsPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 GestureDetector(
-                  child: Icon(
-                    task.isCompleted ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Icon(
+                      _tempIsCompleted ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    ),
                   ),
-                  onTap: () {},
+                  onTap: () {
+                    setState(() {
+                      _tempIsCompleted = !_tempIsCompleted;
+                    });
+                  },
                 ),
-                const SizedBox(width: 21),
+                const SizedBox(width: 13),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(task.title, style: TextStyle(fontSize: 16)),
+                      TextField(
+                        controller: _titleController,
+                        decoration: InputDecoration(
+                          hintText: 'Title',
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
+                          ),
+                          enabledBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(color: Colors.transparent),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {});
+                        },
+                      ),
                       const SizedBox(height: 14),
-                      Text(task.description ?? '', style: TextStyle(fontSize: 16)),
+                      TextField(
+                        maxLines: 3,
+                        controller: _descriptionController,
+                        decoration: InputDecoration(
+                          hintText: 'Description',
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white),
+                          ),
+                          enabledBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(color: Colors.transparent),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {});
+                        },
+                      ),
                     ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {},
-                  icon: Icon(Icons.edit),
-                  style: ButtonStyle(
-                    shape: WidgetStateProperty.all(
-                      RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(4))),
-                    ),
-                    backgroundColor: WidgetStateProperty.all<Color>(Color(0xFF1D1D1D)),
                   ),
                 ),
               ],
@@ -625,25 +733,56 @@ class TaskDetailsPage extends StatelessWidget {
                 Text('Task time:'),
                 const SizedBox(width: 8),
                 Spacer(),
-                if (task.timestamp != null)
-                  Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                    color: Colors.white.withValues(alpha: 0.21),
+                Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  color: Colors.white.withValues(alpha: 0.21),
+                  child: InkWell(
+                    onTap: () {
+                      // Show the date picker.
+                      showDatePicker(
+                        context: context,
+                        initialDate: _tempTimestamp ?? DateTime.now(),
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      ).then((pickedDate) {
+                        if (pickedDate == null) return;
+
+                        // Show the time picker after a date has been picked.
+                        showTimePicker(context: context, initialTime: TimeOfDay.now()).then((
+                          pickedTime,
+                        ) {
+                          if (pickedTime == null) return;
+                          // Set the selected date and time.
+                          setState(() {
+                            _tempTimestamp = DateTime(
+                              pickedDate.year,
+                              pickedDate.month,
+                              pickedDate.day,
+                              pickedTime.hour,
+                              pickedTime.minute,
+                            );
+                          });
+                        });
+                      });
+                    },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       child: Text(
-                        DateFormat('h:mm a dd/MM/yyyy').format(task.timestamp!),
+                        _tempTimestamp != null
+                            ? DateFormat('h:mm a dd/MM/yyyy').format(_tempTimestamp!)
+                            : 'No reminder set',
                         style: TextStyle(fontSize: 14, color: Color(0xFFAFAFAF)),
                       ),
                     ),
                   ),
+                ),
               ],
             ),
 
             const SizedBox(height: 30),
             TextButton.icon(
               onPressed: () {
-                onDeleteTaskPressed(task);
+                widget.onDeleteTaskPressed(widget.task);
                 Navigator.of(context).pop();
               },
               label: Text('Delete Task'),
