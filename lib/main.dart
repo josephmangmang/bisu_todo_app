@@ -378,6 +378,12 @@ class _TodoListViewState extends State<TodoListView> {
                       _filteredTasks[index].isCompleted = value;
                     });
                   },
+                  onDeleteTaskPressed: (Task task) {
+                    setState(() {
+                      widget.tasks.remove(task);
+                      _applyDateFilter();
+                    });
+                  },
                 );
               },
               itemCount: _filteredTasks.length,
@@ -426,6 +432,12 @@ class _TodoListViewState extends State<TodoListView> {
                     // Mark a task as complete or incomplete and update the UI.
                     setState(() {
                       _completedTasks[index].isCompleted = value;
+                    });
+                  },
+                  onDeleteTaskPressed: (Task task) {
+                    setState(() {
+                      widget.tasks.remove(task);
+                      _applyDateFilter();
                     });
                   },
                 );
@@ -495,59 +507,175 @@ class _TodoListViewState extends State<TodoListView> {
 
 // A widget that represents a single item in the to-do list.
 class TaskItem extends StatelessWidget {
-  const TaskItem({super.key, required this.task, required this.onMarkComplete});
+  const TaskItem({
+    super.key,
+    required this.task,
+    required this.onMarkComplete,
+    required this.onDeleteTaskPressed,
+  });
 
   final Task task;
+  final Function(Task task) onDeleteTaskPressed;
+
   // A callback function that is called when the user marks a task as complete or incomplete.
   final ValueChanged<bool> onMarkComplete;
 
   @override
   Widget build(BuildContext context) {
     // A ListTile is a single fixed-height row that typically contains some text as well as a leading or trailing icon.
-    return ListTile(
-      dense: true,
-      // A gesture detector for the radio button.
-      leading: GestureDetector(
-        child: Icon(task.isCompleted ? Icons.radio_button_checked : Icons.radio_button_unchecked),
-        onTap: () {
-          // Call the onMarkComplete callback when the radio button is tapped.
-          onMarkComplete(!task.isCompleted);
-        },
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TaskDetailsPage(task: task, onDeleteTaskPressed: onDeleteTaskPressed),
+          ),
+        );
+      },
+      child: ListTile(
+        dense: true,
+        // A gesture detector for the radio button.
+        leading: GestureDetector(
+          child: Icon(task.isCompleted ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+          onTap: () {
+            // Call the onMarkComplete callback when the radio button is tapped.
+            onMarkComplete(!task.isCompleted);
+          },
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        tileColor: Colors.white.withOpacity(0.21),
+        title: Text(task.title, style: TextStyle(fontSize: 16)),
+        // Show the timestamp if it exists.
+        subtitle: task.timestamp != null
+            ? Text(
+                // Format the timestamp to a relative time string.
+                DateFormat(_relativeTime(task.timestamp)).format(task.timestamp!),
+                style: TextStyle(fontSize: 14, color: Color(0xFFAFAFAF)),
+              )
+            : null,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-      tileColor: Colors.white.withOpacity(0.21),
-      title: Text(task.title, style: TextStyle(fontSize: 16)),
-      // Show the timestamp if it exists.
-      subtitle: task.timestamp != null
-          ? Text(
-              // Format the timestamp to a relative time string.
-              DateFormat(_relativeTime(task.timestamp)).format(task.timestamp!),
-              style: TextStyle(fontSize: 14, color: Color(0xFFAFAFAF)),
-            )
-          : null,
     );
   }
+}
 
-  /// Returns a relative time string for the given timestamp.
-  String? _relativeTime(DateTime? timestamp) {
-    if (timestamp == null) return null;
-    final now = DateTime.now();
-    if (timestamp.year == now.year && timestamp.month == now.month && timestamp.day == now.day) {
-      // If the task is today, show the time.
-      return 'h:mm a';
-    } else if (timestamp.year == now.year &&
-        timestamp.month == now.month &&
-        timestamp.day == now.day - 1) {
-      // If the task was yesterday, show "Yesterday" and the time.
-      return "'Yesterday' h:mm a";
-    } else if (timestamp.year == now.year &&
-        timestamp.month == now.month &&
-        timestamp.day == now.day + 1) {
-      // If the task is tomorrow, show "Tomorrow" and the time.
-      return "'Tomorrow' h:mm a";
-    } else {
-      // Otherwise, show the full date and time.
-      return 'dd/MM/yyyy h:mm a';
-    }
+class TaskDetailsPage extends StatelessWidget {
+  const TaskDetailsPage({super.key, required this.task, required this.onDeleteTaskPressed});
+
+  final Task task;
+  final Function(Task task) onDeleteTaskPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton.filled(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          icon: Icon(Icons.close),
+          style: ButtonStyle(
+            shape: WidgetStateProperty.all(
+              RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(4))),
+            ),
+            backgroundColor: WidgetStateProperty.all<Color>(Color(0xFF1D1D1D)),
+          ),
+        ),
+      ),
+      body: Container(
+        padding: EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                GestureDetector(
+                  child: Icon(
+                    task.isCompleted ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                  ),
+                  onTap: () {},
+                ),
+                const SizedBox(width: 21),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(task.title, style: TextStyle(fontSize: 16)),
+                      const SizedBox(height: 14),
+                      Text(task.description ?? '', style: TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {},
+                  icon: Icon(Icons.edit),
+                  style: ButtonStyle(
+                    shape: WidgetStateProperty.all(
+                      RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(4))),
+                    ),
+                    backgroundColor: WidgetStateProperty.all<Color>(Color(0xFF1D1D1D)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            // reminder time
+            Row(
+              children: [
+                Icon(Icons.alarm),
+                const SizedBox(width: 8),
+                Text('Task time:'),
+                const SizedBox(width: 8),
+                Spacer(),
+                if (task.timestamp != null)
+                  Card(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    color: Colors.white.withValues(alpha: 0.21),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(
+                        DateFormat('h:mm a dd/MM/yyyy').format(task.timestamp!),
+                        style: TextStyle(fontSize: 14, color: Color(0xFFAFAFAF)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            const SizedBox(height: 30),
+            TextButton.icon(
+              onPressed: () {
+                onDeleteTaskPressed(task);
+                Navigator.of(context).pop();
+              },
+              label: Text('Delete Task'),
+              icon: Icon(Icons.delete),
+              style: ButtonStyle(foregroundColor: WidgetStateProperty.all<Color>(Colors.red)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Returns a relative time string for the given timestamp.
+String? _relativeTime(DateTime? timestamp) {
+  if (timestamp == null) return null;
+  final now = DateTime.now();
+  if (timestamp.year == now.year && timestamp.month == now.month && timestamp.day == now.day) {
+    // If the task is today, show the time.
+    return 'h:mm a';
+  } else if (timestamp.year == now.year &&
+      timestamp.month == now.month &&
+      timestamp.day == now.day - 1) {
+    // If the task was yesterday, show "Yesterday" and the time.
+    return "'Yesterday' h:mm a";
+  } else if (timestamp.year == now.year &&
+      timestamp.month == now.month &&
+      timestamp.day == now.day + 1) {
+    // If the task is tomorrow, show "Tomorrow" and the time.
+    return "'Tomorrow' h:mm a";
+  } else {
+    // Otherwise, show the full date and time.
+    return 'dd/MM/yyyy h:mm a';
   }
 }
